@@ -1,0 +1,25 @@
+services:
+  sqlserver:
+    build:
+      context: ./sqlserver
+      dockerfile: Dockerfile
+    container_name: sqlserver-c
+    ports:
+      - "${SQL_PORT:-1433}:1433"
+    environment:
+      ACCEPT_EULA: ${ACCEPT_EULA:-Y}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-AgroPacayales2026!}
+    restart: unless-stopped
+
+  mongodb:
+    build:
+      context: ./mongodb
+      dockerfile: Dockerfile
+    container_name: mongodb-c
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-AgroAdmin2026!}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-agropacayales_db}
+    restart: unless-stopped
