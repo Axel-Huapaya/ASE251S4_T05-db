@@ -35,13 +35,13 @@ history_exists() {
 
 baseline_complete() {
   result="$(query_database "SELECT CASE WHEN
-    OBJECT_ID(N'agropacayales.usuarios', N'U') IS NOT NULL AND
-    OBJECT_ID(N'finanzas.stock_insumos', N'U') IS NOT NULL AND
-    OBJECT_ID(N'finanzas.compras_insumos', N'U') IS NOT NULL AND
-    OBJECT_ID(N'agropacayales.asignacion_labores', N'U') IS NOT NULL AND
-    OBJECT_ID(N'finanzas.liquidacion_cosechas', N'U') IS NOT NULL AND
-    OBJECT_ID(N'finanzas.vw_comparativa_costos_ganancias', N'V') IS NOT NULL AND
-    OBJECT_ID(N'finanzas.sp_analizar_rentabilidad_parcela', N'P') IS NOT NULL
+    OBJECT_ID(N'dbo.cultivos', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.actividad_cultivo', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.detalle_actividad', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.harvest', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.harvest_planting_cycle', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.asignacion_cabecera', N'U') IS NOT NULL AND
+    OBJECT_ID(N'dbo.asignacion_detalle', N'U') IS NOT NULL
     THEN 1 ELSE 0 END;")"
   [ "$(printf '%s' "$result" | tr -d '[:space:]')" = 1 ]
 }

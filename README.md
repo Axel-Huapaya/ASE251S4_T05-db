@@ -7,11 +7,11 @@
 
 ## 👥 Equipo de Trabajo y Asignaciones
 
-| Integrante | Rol | Asignación Técnica | Estrategias de Modelado NoSQL |
+| Integrante | Rol | Asignación Técnica | Estrategias de Modelado NoSQL (Embedding) |
 | :--- | :--- | :--- | :--- |
-| **Hugo Fernández** | **DevOps / Líder Técnico** | Orquestación Docker, Compose, Versionador `run.sh`, Checker API | **1. Embedding:** Condiciones edáficas y análisis de suelo en `parcelas`.<br>**2. Referencing:** Telemetría IoT en `sensores_telemetria`. |
-| **Ana Félix** | **Database Developer (SQL Server)** | Módulo SQL Server 2022, kardex de insumos, auditoría de labores | **1. Embedding:** Desglose inmutable de calidades en `cosechas`.<br>**2. Referencing:** Enlace foráneo `id_insumo` en `fichas_campo` hacia SQL Server. |
-| **Axel Huapaya** | **Database Developer (MongoDB)** | Módulo MongoDB 8.0, validadores `$jsonSchema`, índices y migraciones | **1. Embedding:** Protocolo de certificación GlobalG.A.P. en `fichas_campo`.<br>**2. Referencing / Subset:** Histórico multianual de cosechas con subset en `parcelas`. |
+| **Hugo Fernández** | **DevOps / Líder Técnico** | Orquestación Docker, Compose, Versionador `run.sh`, Checker API | **1.** `condiciones_edaficas` (1:1) en `parcelas`<br>**2.** `dispositivos_iot_instalados` (1:Few) en `parcelas`<br>**3.** `sistema_riego` (1:1) en `parcelas` |
+| **Ana Félix** | **Database Developer (SQL Server)** | Módulo SQL Server 2022, kardex de insumos, auditoría de labores | **1.** `desgloseCalidades` (1:Few) en `cosechas`<br>**2.** `control_calidad_laboratorio` (1:1) en `cosechas`<br>**3.** `tabla_dosificacion_cultivo` (1:Few) en `insumos` |
+| **Axel Huapaya** | **Database Developer (MongoDB)** | Módulo MongoDB 8.0, validadores `$jsonSchema`, índices y migraciones | **1.** `protocolo_certificacion` (1:1) en `fichas_campo`<br>**2.** `monitoreo_plagas_evaluadas` (1:Few) en `fichas_campo`<br>**3.** `condiciones_ambientales_monitoreo` (1:1) en `fichas_campo` |
 
 ---
 
@@ -111,27 +111,28 @@ TARGET_SCHEMA_VERSION=2 docker compose -f compose.yaml -f compose.build.yaml up 
 
 ---
 
-## 🍃 4. Estrategias de Modelado de Datos NoSQL (MongoDB)
+## 🍃 4. Estrategias de Modelado de Datos NoSQL (MongoDB - Estrategia Embedding)
 
-Para la presente actividad académica, se investigaron e implementaron **6 ejemplos fundamentados en el modelo de negocio de Agro Pacayales S.A.C.** (2 por integrante):
+Para la presente actividad académica, se implementaron **9 ejemplos de la estrategia Embedding fundamentados en el modelo de negocio de Agro Pacayales S.A.C.** (3 por cada integrante del equipo):
 
-### 1. Hugo Fernández
-* **Estrategia 1 (Embedding 1:1):** Subdocumento `condiciones_edaficas` (textura, pH, materia orgánica, conductividad eléctrica) incrustado en `parcelas`. Garantiza lectura atómica en una sola operación de disco al consultar la ficha satelital en campo.
-* **Estrategia 2 (Referencing 1:N No Acotado):** Colección independiente `sensores_telemetria` referenciando `id_parcela`. Permite almacenar miles de lecturas IoT de sondas de humedad a 30cm/60cm y temperatura foliar sin exceder el límite BSON de 16MB.
+### 1. Hugo Fernández (Entidad: `parcelas`)
+* **Ejemplo 1 (Embedding 1:1):** Subdocumento `condiciones_edaficas` (textura, pH, materia orgánica, conductividad). Garantiza lectura atómica en una sola operación de disco al consultar la ficha agronómica de la parcela.
+* **Ejemplo 2 (Embedding 1:Few):** Array `dispositivos_iot_instalados` (sondas de humedad a 30cm/60cm, estado de batería, calibración). Conjunto acotado de hardware instalado en el lote.
+* **Ejemplo 3 (Embedding 1:1):** Subdocumento `sistema_riego` (tipo de goteo tecnificado, caudal L/h, sector de válvula). Infraestructura fija del sector agrícola.
 
-### 2. Ana Félix
-* **Estrategia 1 (Embedding 1:Few Finito):** Array `desgloseCalidades` en `cosechas` (Cat 1 Exportación Rotterdam, Nacional, Merma). Mantiene un snapshot inmutable y definitivo del pesaje de packing para cálculo financiero directo.
-* **Estrategia 2 (Referencing Foráneo Políglota):** Enlace foráneo `id_insumo` en `fichas_campo` referenciando la colección `insumos`, enlazado directamente con el inventario contable y kardex de SQL Server (`finanzas.stock_insumos`).
+### 2. Ana Félix (Entidades: `cosechas` e `insumos`)
+* **Ejemplo 1 (Embedding 1:Few):** Array `desgloseCalidades` en `cosechas` (Cat 1 Exportación Rotterdam, Nacional, Merma). Mantiene un snapshot inmutable del pesaje de packing para liquidación comercial.
+* **Ejemplo 2 (Embedding 1:1):** Subdocumento `control_calidad_laboratorio` en `cosechas` (°Brix, materia seca %, firmeza de pulpa, veredicto fitosanitario pre-embarque).
+* **Ejemplo 3 (Embedding 1:Few):** Array `tabla_dosificacion_cultivo` en `insumos` (dosis por cultivo y etapa fenológica incrustadas en el catálogo de insumos).
 
-### 3. Axel Huapaya
-* **Estrategia 1 (Embedding Snapshot):** Subdocumento `protocolo_certificacion` en `fichas_campo` (GlobalG.A.P., SENASA, días de carencia cumplidos, LMR en ppm y lista de verificación). Evidencia autosuficiente e inalterable para auditorías de aduana.
-* **Estrategia 2 (Referencing / Subset Pattern):** Colección `cosechas` referenciando `id_parcela` para todo el histórico multianual de 25 años de plantación, manteniendo en `parcelas` únicamente el subdocumento ligero `resumen_ultima_campana` para consultas del día a día.
-
-> 📖 **Documentación Teórica Completa:** Consulta [MODELADO_DATOS_ESTRATEGIAS.md](file:///e:/base%20de%20datos/ASE251S4_T05-db/docs/MODELADO_DATOS_ESTRATEGIAS.md) para ver los esquemas BSON, validadores `$jsonSchema` y pipelines de agregación.
+### 3. Axel Huapaya (Entidad: `fichas_campo`)
+* **Ejemplo 1 (Embedding 1:1):** Subdocumento `protocolo_certificacion` (auditoría GlobalG.A.P. IFA v6, código de auditor, días de carencia cumplidos, LMR en ppm, checklist de puntos críticos).
+* **Ejemplo 2 (Embedding 1:Few):** Array `monitoreo_plagas_evaluadas` (conteo por trampa de mosca de la fruta y queresas, órgano afectado y nivel de infestación).
+* **Ejemplo 3 (Embedding 1:1):** Subdocumento `condiciones_ambientales_monitoreo` (temperatura ambiente, humedad relativa %, velocidad de viento y radiación UV al momento de la inspección técnica).
 
 ---
 
-## 📊 5. Consulta Clave: Toma de Decisiones (Costos vs Ganancias)
+## 📊 5. Consulta Clave: Toma de Decisiones y Operaciones
 
 Desde SQL Server (SSMS, Azure Data Studio o `sqlcmd`):
 
@@ -139,20 +140,24 @@ Desde SQL Server (SSMS, Azure Data Studio o `sqlcmd`):
 USE agropacayales_db;
 GO
 
--- Consulta comparativa de rentabilidad por parcela
-SELECT * FROM finanzas.vw_comparativa_costos_ganancias;
+-- Consulta del resumen operativo consolidado por cultivo
+SELECT * FROM dbo.vw_resumen_operativo_cultivos;
 
--- Informe gerencial con veredicto de inversión para la parcela
-EXEC finanzas.sp_analizar_rentabilidad_parcela 'PARC-NORTE-A1';
+-- Consulta de actividades con detalle de insumos y mano de obra
+SELECT 
+    c.nombre AS cultivo,
+    a.tipo_actividad,
+    d.id_insumo,
+    d.cantidad,
+    d.precio_unitario,
+    d.subtotal AS costo_insumo,
+    asig.costo_total_mano_obra
+FROM dbo.cultivos c
+INNER JOIN dbo.actividad_cultivo a ON c.id_cultivo = a.id_cultivo
+INNER JOIN dbo.detalle_actividad d ON a.id_actividad = d.id_actividad
+LEFT JOIN dbo.asignacion_cabecera asig ON a.id_actividad = asig.id_actividad;
 GO
 ```
-
-### Resultados que sustentan la decisión gerencial:
-* **Inversión en Insumos:** \$1,450.00 USD (Insecticida BioProtect Pro + NPK 20-20-20).
-* **Ingreso por Exportación:** \$14,080.00 USD (4,400 kg de Palta Hass Cat 1 a Rotterdam).
-* **Ganancia Neta:** +\$12,630.00 USD.
-* **Retorno de Inversión (ROI):** **871%**.
-* **Veredicto Gerencial:** **`ALTA RENTABILIDAD (EXPANDIR CULTIVO)`**.
 
 ---
 

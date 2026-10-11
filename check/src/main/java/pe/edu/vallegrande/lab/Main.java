@@ -68,16 +68,16 @@ public final class Main {
     long started = System.nanoTime();
     try (var connection = DriverManager.getConnection(env("SQL_URL"), env("SQL_USER"), env("SQL_PASSWORD"));
          var statement = connection.prepareStatement(
-             "SELECT TOP (1) id_usuario FROM agropacayales.usuarios WHERE email = ?")) {
-      statement.setString(1, optionalEnv("SQL_SEED_EMAIL", "carlos@agro.com"));
+             "SELECT TOP (1) id_cultivo FROM dbo.cultivos WHERE id_parcela = ?")) {
+      statement.setString(1, optionalEnv("SQL_SEED_PARCELA_ID", "PARC-NORTE-A1"));
       statement.setQueryTimeout(3);
       try (var result = statement.executeQuery()) {
         if (!result.next()) throw new IllegalStateException("La semilla SQL no es visible");
       }
-      return new Probe(true, elapsed(started), env("SQL_URL"), "conexión y lectura de usuario semilla", null);
+      return new Probe(true, elapsed(started), env("SQL_URL"), "conexión y lectura de cultivo semilla", null);
     } catch (Exception error) {
       return new Probe(false, elapsed(started), optionalEnv("SQL_URL", "SQL Server"),
-          "conexión y lectura de usuario semilla", safeError(error));
+          "conexión y lectura de cultivo semilla", safeError(error));
     }
   }
 
@@ -151,14 +151,15 @@ public final class Main {
 
   private static Map<String, Object> sqlServerContract() throws Exception {
     var columns = new ArrayList<Map<String, Object>>();
-    long users;
-    long labores;
-    long liquidaciones;
+    long cultivos;
+    long actividades;
+    long harvests;
+    long asignaciones;
     try (var connection = DriverManager.getConnection(env("SQL_URL"), env("SQL_USER"), env("SQL_PASSWORD"))) {
       try (var statement = connection.prepareStatement(
           "SELECT column_name, data_type, character_maximum_length, is_nullable "
-              + "FROM information_schema.columns WHERE table_schema = 'agropacayales' "
-              + "AND table_name = 'usuarios' ORDER BY ordinal_position")) {
+              + "FROM information_schema.columns WHERE table_schema = 'dbo' "
+              + "AND table_name = 'actividad_cultivo' ORDER BY ordinal_position")) {
         try (var result = statement.executeQuery()) {
           while (result.next()) {
             columns.add(map("name", result.getString(1), "type", result.getString(2),
@@ -166,12 +167,14 @@ public final class Main {
           }
         }
       }
-      users = count(connection, "SELECT COUNT_BIG(*) FROM agropacayales.usuarios");
-      labores = count(connection, "SELECT COUNT_BIG(*) FROM agropacayales.asignacion_labores");
-      liquidaciones = count(connection, "SELECT COUNT_BIG(*) FROM finanzas.liquidacion_cosechas");
+      cultivos = count(connection, "SELECT COUNT_BIG(*) FROM dbo.cultivos");
+      actividades = count(connection, "SELECT COUNT_BIG(*) FROM dbo.actividad_cultivo");
+      harvests = count(connection, "SELECT COUNT_BIG(*) FROM dbo.harvest");
+      asignaciones = count(connection, "SELECT COUNT_BIG(*) FROM dbo.asignacion_cabecera");
     }
-    return map("database", SQL_DATABASE, "schema", "agropacayales", "table", "usuarios",
-        "columns", columns, "usersCount", users, "laboresCount", labores, "liquidacionesCount", liquidaciones,
+    return map("database", SQL_DATABASE, "schema", "dbo", "table", "actividad_cultivo",
+        "columns", columns, "cultivosCount", cultivos, "actividadesCount", actividades,
+        "harvestsCount", harvests, "asignacionesCount", asignaciones,
         "applicationUser", env("SQL_USER"), "access", "configured credentials");
   }
 
@@ -225,16 +228,18 @@ public final class Main {
   private static Map<String, Object> sqlSample() throws Exception {
     try (var connection = DriverManager.getConnection(env("SQL_URL"), env("SQL_USER"), env("SQL_PASSWORD"));
          var statement = connection.prepareStatement(
-             "SELECT TOP (1) id_labor, id_parcela, cantidad_usada, costo_aplicado, tipo_labor, "
-                 + "CONVERT(varchar(33), fecha_aplicacion, 126) "
-                 + "FROM agropacayales.asignacion_labores WHERE id_parcela = ? ORDER BY id_labor")) {
+             "SELECT TOP (1) a.id_actividad, c.nombre, a.tipo_actividad, a.costo_total, a.estado, "
+                 + "CONVERT(varchar(33), a.fecha_actividad, 126) "
+                 + "FROM dbo.actividad_cultivo a "
+                 + "INNER JOIN dbo.cultivos c ON a.id_cultivo = c.id_cultivo "
+                 + "WHERE c.id_parcela = ? ORDER BY a.id_actividad")) {
       statement.setString(1, optionalEnv("SQL_SEED_PARCELA_ID", "PARC-NORTE-A1"));
       statement.setQueryTimeout(3);
       try (var result = statement.executeQuery()) {
         if (!result.next()) return null;
-        return map("idLabor", result.getInt(1), "idParcela", result.getString(2),
-            "cantidadUsada", result.getBigDecimal(3), "costoAplicado", result.getBigDecimal(4),
-            "tipoLabor", result.getString(5), "fechaAplicacion", result.getString(6));
+        return map("idActividad", result.getInt(1), "cultivo", result.getString(2),
+            "tipoActividad", result.getString(3), "costoTotal", result.getBigDecimal(4),
+            "estado", result.getBoolean(5), "fechaActividad", result.getString(6));
       }
     }
   }

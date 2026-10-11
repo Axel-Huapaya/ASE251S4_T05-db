@@ -1,34 +1,22 @@
-// ==============================================================================
+// =============================================================================
 // V002_modelado_estrategias.js — Agro Pacayales S.A.C.
-// EVOLUCIÓN DE ESQUEMA V2: MODELADO DE DATOS MEDIANTE EMBEDDING (INCRUSTACIÓN)
-// Implementación: 3 Ejemplos de Embedding por Integrante (9 Ejemplos en Total)
-//
-// 👥 ASIGNACIÓN DE INTEGRANTES — TEMA: EMBEDDING (1 - 5)
-// 1. HUGO FERNÁNDEZ:
-//    - Ejemplo 1 (Embedding 1:1): Condiciones edáficas y análisis físico-químico en 'parcelas'
-//    - Ejemplo 2 (Embedding 1:Few): Array de nodos sensores IoT instalados en 'parcelas'
-//    - Ejemplo 3 (Embedding 1:1): Subdocumento de sistema de riego tecnificado en 'parcelas'
-// 2. ANA FÉLIX:
-//    - Ejemplo 1 (Embedding 1:Few): Desglose inmutable de calidades y destinos en 'cosechas'
-//    - Ejemplo 2 (Embedding 1:1): Subdocumento de control de calidad de laboratorio en 'cosechas'
-//    - Ejemplo 3 (Embedding 1:Few): Array de dosificación técnica por cultivo en 'insumos'
-// 3. AXEL HUAPAYA:
-//    - Ejemplo 1 (Embedding 1:1): Protocolo y auditoría de certificación GlobalG.A.P. en 'fichas_campo'
-//    - Ejemplo 2 (Embedding 1:Few): Array de hallazgos y conteo de plagas en 'fichas_campo'
-//    - Ejemplo 3 (Embedding Subset): Resumen de rendimiento de última campaña en 'parcelas'
-// ==============================================================================
+// Modelado de Datos NoSQL: Estrategia Embedding (3 ejemplos por integrante)
+// =============================================================================
 
 var adminDb = db.getSiblingDB('admin');
 if (!adminDb.auth(process.env.MONGO_ADMIN_USER, process.env.MONGO_ADMIN_PASSWORD)) {
-  throw Error('Autenticación MongoDB fallida para V002_modelado_estrategias');
+  throw Error('Error de autenticación en MongoDB');
 }
 
 db = db.getSiblingDB(process.env.MONGO_DATABASE || 'agropacayales_db');
-print('[V002] Aplicando migración V002: Modelado de Datos con Estrategia EMBEDDING (9 Ejemplos)...');
 
-// ==============================================================================
-// 1. INTEGRANTE 1: HUGO FERNÁNDEZ (3 Ejemplos en 'parcelas')
-// ==============================================================================
+// =============================================================================
+// 1. INTEGRANTE: HUGO FERNÁNDEZ
+// Entidad: 'parcelas'
+// - Ejemplo 1 (1:1): Condiciones edáficas y fisicoquímicas del suelo
+// - Ejemplo 2 (1:Few): Sensores IoT instalados fijos en la parcela
+// - Ejemplo 3 (1:1): Sistema de riego tecnificado por goteo
+// =============================================================================
 
 db.runCommand({
   collMod: 'parcelas',
@@ -43,7 +31,8 @@ db.runCommand({
         hectareas: { bsonType: ['double', 'int', 'decimal'], minimum: 0.1 },
         geometriaGeoJSON: { bsonType: 'object' },
         cultivoActual: { bsonType: 'object' },
-        // EJEMPLO 1 (Hugo Fernández - 1:1): Condiciones edáficas de suelo
+
+        // Hugo Fernández - Ejemplo 1: Subdocumento edáfico 1:1
         condiciones_edaficas: {
           bsonType: 'object',
           required: ['textura', 'ph_promedio', 'materia_organica_pct'],
@@ -56,7 +45,8 @@ db.runCommand({
             fecha_ultimo_analisis: { bsonType: 'date' }
           }
         },
-        // EJEMPLO 2 (Hugo Fernández - 1:Few): Nodos sensores IoT acotados físicamente
+
+        // Hugo Fernández - Ejemplo 2: Array de sensores IoT 1:Few
         dispositivos_iot_instalados: {
           bsonType: 'array',
           items: {
@@ -71,7 +61,8 @@ db.runCommand({
             }
           }
         },
-        // EJEMPLO 3 (Hugo Fernández - 1:1): Especificación técnica de riego
+
+        // Hugo Fernández - Ejemplo 3: Infraestructura de riego tecnificado 1:1
         sistema_riego: {
           bsonType: 'object',
           required: ['tipo', 'caudal_lph', 'sector_valvula'],
@@ -82,16 +73,6 @@ db.runCommand({
             emisor_espaciamiento_m: { bsonType: ['double', 'int'] },
             sector_valvula: { bsonType: 'string' }
           }
-        },
-        // EJEMPLO 3 (Axel Huapaya - Subset Pattern): Resumen de última campaña
-        resumen_ultima_campana: {
-          bsonType: 'object',
-          properties: {
-            ano_campana: { bsonType: 'int' },
-            total_kilos_cosechados: { bsonType: ['double', 'int', 'decimal'] },
-            rendimiento_kg_ha: { bsonType: ['double', 'int', 'decimal'] },
-            calidad_cat1_pct: { bsonType: ['double', 'int', 'decimal'] }
-          }
         }
       }
     }
@@ -100,7 +81,7 @@ db.runCommand({
   validationAction: 'error'
 });
 
-// Actualizar parcelas existentes con los 3 embeddings de Hugo Fernández y el subset de Axel Huapaya
+// Carga de datos demostrativos — Hugo Fernández
 db.parcelas.updateOne(
   { _id: 'PARC-NORTE-A1' },
   {
@@ -123,12 +104,6 @@ db.parcelas.updateOne(
         numero_lineas_por_hilera: 2,
         emisor_espaciamiento_m: 0.5,
         sector_valvula: 'VALV-SEC-NORTE-01'
-      },
-      resumen_ultima_campana: {
-        ano_campana: 2025,
-        total_kilos_cosechados: 52000.0,
-        rendimiento_kg_ha: 4160.0,
-        calidad_cat1_pct: 84.6
       }
     }
   }
@@ -140,7 +115,7 @@ db.parcelas.updateOne(
     $set: {
       condiciones_edaficas: {
         textura: 'Franco-arcilloso',
-        ph_promedio: 5.2, // pH ácido idóneo para arándano Biloxi
+        ph_promedio: 5.2,
         materia_organica_pct: 3.10,
         conductividad_electrica_dS_m: 0.90,
         capacidad_intercambio_cationico_meq: 22.0,
@@ -155,23 +130,19 @@ db.parcelas.updateOne(
         numero_lineas_por_hilera: 1,
         emisor_espaciamiento_m: 0.75,
         sector_valvula: 'VALV-SEC-SUR-02'
-      },
-      resumen_ultima_campana: {
-        ano_campana: 2025,
-        total_kilos_cosechados: 36000.0,
-        rendimiento_kg_ha: 4500.0,
-        calidad_cat1_pct: 88.2
       }
     }
   }
 );
-print('[V002][Hugo Fernández] 3 Ejemplos de Embedding aplicados en coleccion parcelas.');
 
-// ==============================================================================
-// 2. INTEGRANTE 2: ANA FÉLIX (2 Ejemplos en 'cosechas' + 1 Ejemplo en 'insumos')
-// ==============================================================================
+// =============================================================================
+// 2. INTEGRANTE: ANA FÉLIX
+// Entidades: 'cosechas' e 'insumos'
+// - Ejemplo 1 (1:Few): Desglose inmutable de calidades comerciales en cosecha
+// - Ejemplo 2 (1:1): Certificado analítico de calidad de exportación
+// - Ejemplo 3 (1:Few): Tabla técnica de dosificación por cultivo en insumos
+// =============================================================================
 
-// Actualizar validación de 'cosechas' con los 2 embeddings de Ana Félix
 db.runCommand({
   collMod: 'cosechas',
   validator: {
@@ -184,7 +155,8 @@ db.runCommand({
         cultivo: { bsonType: 'string' },
         fechaCosecha: { bsonType: 'date' },
         totalKilosCampo: { bsonType: ['double', 'int', 'decimal'], minimum: 0.1 },
-        // EJEMPLO 1 (Ana Félix - 1:Few): Desglose inmutable de calidades y destinos comerciales
+
+        // Ana Félix - Ejemplo 1: Array de calidades comerciales 1:Few
         desgloseCalidades: {
           bsonType: 'array',
           minItems: 1,
@@ -201,7 +173,8 @@ db.runCommand({
             }
           }
         },
-        // EJEMPLO 2 (Ana Félix - 1:1): Control de calidad de laboratorio pre-embarque
+
+        // Ana Félix - Ejemplo 2: Certificado analítico de laboratorio 1:1
         control_calidad_laboratorio: {
           bsonType: 'object',
           required: ['grados_brix', 'materia_seca_pct', 'estado_fitosanitario'],
@@ -229,7 +202,7 @@ db.cosechas.updateOne(
           calidad: 'Exportación Cat 1',
           kilos: 4400.00,
           calibre: 'Calibre 16-18',
-          empaque_formato: 'Cajas de 4.0 kg con atmósfera controlada',
+          empaque_formato: 'Cajas de 4.0 kg atmósfera controlada',
           puerto_destino: 'Puerto de Rotterdam (Países Bajos)',
           precio_referencial_usd_kg: 3.20
         },
@@ -244,7 +217,7 @@ db.cosechas.updateOne(
         {
           calidad: 'Merma / Descarte',
           kilos: 200.00,
-          empaque_formato: 'A granel para compostaje orgánico',
+          empaque_formato: 'A granel para compostaje',
           precio_referencial_usd_kg: 0.00
         }
       ],
@@ -259,7 +232,6 @@ db.cosechas.updateOne(
   }
 );
 
-// EJEMPLO 3 (Ana Félix - 1:Few): Dosificación técnica por cultivo embebida en 'insumos'
 db.runCommand({
   collMod: 'insumos',
   validator: {
@@ -272,6 +244,8 @@ db.runCommand({
         categoria: { bsonType: 'string' },
         unidadMedida: { bsonType: 'string' },
         especificaciones: { bsonType: 'object' },
+
+        // Ana Félix - Ejemplo 3: Array técnico de dosificaciones 1:Few
         tabla_dosificacion_cultivo: {
           bsonType: 'array',
           minItems: 1,
@@ -316,24 +290,36 @@ db.insumos.updateOne(
     }
   }
 );
-print('[V002][Ana Félix] 3 Ejemplos de Embedding aplicados en colecciones cosechas e insumos.');
 
-// ==============================================================================
-// 3. INTEGRANTE 3: AXEL HUAPAYA (2 Ejemplos en 'fichas_campo' + 1 Ejemplo en 'parcelas')
-// ==============================================================================
+// =============================================================================
+// 3. INTEGRANTE: AXEL HUAPAYA
+// Entidad: 'fichas_campo'
+// - Ejemplo 1 (1:1): Protocolo inmutable de certificación GlobalG.A.P.
+// - Ejemplo 2 (1:Few): Monitoreo y conteo de plagas evaluadas por trampa
+// - Ejemplo 3 (1:1): Condiciones microclimáticas ambientales al momento de la evaluación
+// =============================================================================
 
 db.runCommand({
   collMod: 'fichas_campo',
   validator: {
     $jsonSchema: {
       bsonType: 'object',
-      required: ['fechaEvaluacion', 'evaluador', 'parcela', 'tipoFicha', 'protocolo_certificacion', 'monitoreo_plagas_evaluadas'],
+      required: [
+        'fechaEvaluacion',
+        'evaluador',
+        'parcela',
+        'tipoFicha',
+        'protocolo_certificacion',
+        'monitoreo_plagas_evaluadas',
+        'condiciones_ambientales_monitoreo'
+      ],
       properties: {
         fechaEvaluacion: { bsonType: 'date' },
         evaluador: { bsonType: 'string' },
         parcela: { bsonType: 'string' },
         tipoFicha: { enum: ['PLAGAS', 'RIEGO_Y_SUELO', 'FERTILIZACION', 'EVALUACION_FITOSANITARIA'] },
-        // EJEMPLO 1 (Axel Huapaya - 1:1): Protocolo inmutable GlobalG.A.P. / SENASA
+
+        // Axel Huapaya - Ejemplo 1: Protocolo de certificación GlobalG.A.P. 1:1
         protocolo_certificacion: {
           bsonType: 'object',
           required: ['norma', 'codigo_auditor', 'carencia_cumplida', 'cumple_lmr'],
@@ -351,7 +337,8 @@ db.runCommand({
             }
           }
         },
-        // EJEMPLO 2 (Axel Huapaya - 1:Few): Hallazgos de plagas en campo
+
+        // Axel Huapaya - Ejemplo 2: Array de plagas evaluadas en campo 1:Few
         monitoreo_plagas_evaluadas: {
           bsonType: 'array',
           minItems: 1,
@@ -365,6 +352,19 @@ db.runCommand({
               individuos_por_trampa: { bsonType: ['double', 'int', 'decimal'] }
             }
           }
+        },
+
+        // Axel Huapaya - Ejemplo 3: Condiciones climáticas de la evaluación 1:1
+        condiciones_ambientales_monitoreo: {
+          bsonType: 'object',
+          required: ['temperatura_c', 'humedad_relativa_pct', 'velocidad_viento_kmh'],
+          properties: {
+            temperatura_c: { bsonType: ['double', 'int', 'decimal'] },
+            humedad_relativa_pct: { bsonType: ['double', 'int', 'decimal'] },
+            velocidad_viento_kmh: { bsonType: ['double', 'int', 'decimal'] },
+            radiacion_uv_indice: { bsonType: ['double', 'int'] },
+            precipitacion_reciente_mm: { bsonType: ['double', 'int', 'decimal'] }
+          }
         }
       }
     }
@@ -373,6 +373,7 @@ db.runCommand({
   validationAction: 'error'
 });
 
+// Carga de datos demostrativos — Axel Huapaya
 db.fichas_campo.updateOne(
   { parcela: 'PARC-NORTE-A1' },
   {
@@ -394,9 +395,16 @@ db.fichas_campo.updateOne(
       monitoreo_plagas_evaluadas: [
         { plaga: 'Mosca de la fruta (Ceratitis capitata)', organo_afectado: 'Fruto', nivel_infestacion: 'Bajo', individuos_por_trampa: 0.4 },
         { plaga: 'Queresa coma (Fiorinia fioriniae)', organo_afectado: 'Ramas', nivel_infestacion: 'Nulo', individuos_por_trampa: 0.0 }
-      ]
+      ],
+      condiciones_ambientales_monitoreo: {
+        temperatura_c: 24.5,
+        humedad_relativa_pct: 68.0,
+        velocidad_viento_kmh: 8.5,
+        radiacion_uv_indice: 7,
+        precipitacion_reciente_mm: 0.0
+      }
     }
   }
 );
-print('[V002][Axel Huapaya] 2 Ejemplos de Embedding aplicados en fichas_campo (el tercero es el subset pattern en parcelas).');
-print('[V002] Migración V002 completada con éxito: 9 Ejemplos de EMBEDDING activos y validados con $jsonSchema.');
+
+print('MongoDB: V002 aplicado con éxito (9 ejemplos de Embedding agrupados estrictamente por integrante).');

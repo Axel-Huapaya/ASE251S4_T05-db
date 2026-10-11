@@ -1,6 +1,8 @@
 -- ==============================================================================
 -- V001_baseline.sql — Agro Pacayales S.A.C.
--- Línea Base (Versión 1) del Esquema Relacional de SQL Server 2022
+-- Línea Base (Versión 1) del Esquema Transaccional Relacional en SQL Server 2022
+-- Arquitectura Políglota: MongoDB (Maestros) + SQL Server R2DBC (Transacciones)
+-- Esquema: dbo (Transaccionales Cabecera - Detalle)
 -- ==============================================================================
 
 IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'agropacayales_db')
@@ -12,270 +14,201 @@ GO
 USE agropacayales_db;
 GO
 
--- 1. Esquemas Organizacionales
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'agropacayales')
+-- 1. Tabla de Cultivos (Entidad de soporte para las transacciones)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'cultivos' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
-    EXEC('CREATE SCHEMA agropacayales;');
-END;
-GO
-
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'finanzas')
-BEGIN
-    EXEC('CREATE SCHEMA finanzas;');
-END;
-GO
-
--- 2. Tablas Maestras y Operacionales
-IF OBJECT_ID(N'agropacayales.usuarios', N'U') IS NULL
-BEGIN
-    CREATE TABLE agropacayales.usuarios (
-        id_usuario INT IDENTITY(1,1) PRIMARY KEY,
-        nombre_completo VARCHAR(100) NOT NULL,
-        email VARCHAR(120) NOT NULL,
-        rol VARCHAR(50) NOT NULL,
-        fecha_registro DATETIME NOT NULL DEFAULT GETDATE()
-    );
-END;
-GO
-
-IF OBJECT_ID(N'finanzas.stock_insumos', N'U') IS NULL
-BEGIN
-    CREATE TABLE finanzas.stock_insumos (
-        id_insumo VARCHAR(24) PRIMARY KEY, -- Clave compartida con MongoDB insumos._id
-        nombre_insumo VARCHAR(100) NOT NULL,
-        unidad_medida VARCHAR(20) NOT NULL,
-        stock_disponible DECIMAL(10,2) NOT NULL DEFAULT 0,
-        costo_promedio DECIMAL(10,2) NOT NULL,
-        ultima_act DATETIME NOT NULL DEFAULT GETDATE()
-    );
-END;
-GO
-
-IF OBJECT_ID(N'finanzas.compras_insumos', N'U') IS NULL
-BEGIN
-    CREATE TABLE finanzas.compras_insumos (
-        id_compra INT IDENTITY(1,1) PRIMARY KEY,
-        id_insumo VARCHAR(24) NOT NULL,
-        proveedor VARCHAR(100) NOT NULL,
-        num_factura VARCHAR(30) NOT NULL,
-        cantidad DECIMAL(10,2) NOT NULL,
-        precio_unitario DECIMAL(10,2) NOT NULL,
-        total_compra DECIMAL(10,2) NOT NULL,
-        fecha_compra DATETIME NOT NULL DEFAULT GETDATE()
-    );
-END;
-GO
-
-IF OBJECT_ID(N'agropacayales.asignacion_labores', N'U') IS NULL
-BEGIN
-    CREATE TABLE agropacayales.asignacion_labores (
-        id_labor INT IDENTITY(1,1) PRIMARY KEY,
+    CREATE TABLE dbo.cultivos (
+        id_cultivo INT IDENTITY(1,1) CONSTRAINT PK_cultivos PRIMARY KEY,
         id_parcela VARCHAR(24) NOT NULL, -- Clave compartida con MongoDB parcelas._id
-        id_usuario INT NOT NULL,
-        id_insumo VARCHAR(24) NOT NULL,
-        cantidad_usada DECIMAL(10,2) NOT NULL,
-        costo_aplicado DECIMAL(10,2) NOT NULL,
-        tipo_labor VARCHAR(50) NOT NULL,
-        fecha_aplicacion DATETIME NOT NULL DEFAULT GETDATE(),
-        estado VARCHAR(20) NOT NULL DEFAULT 'Ejecutado'
+        nombre VARCHAR(100) NOT NULL,
+        tipo_cultivo VARCHAR(80) NOT NULL,
+        frecuencia_riego_dias INT NOT NULL DEFAULT 3,
+        temperatura_ideal DECIMAL(5,2) NOT NULL DEFAULT 22.0,
+        fecha_siembra DATE DEFAULT GETDATE(),
+        requiere_sombra BIT DEFAULT 0,
+        observaciones VARCHAR(MAX),
+        estado BIT DEFAULT 1,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2
     );
 END;
 GO
 
-IF OBJECT_ID(N'finanzas.liquidacion_cosechas', N'U') IS NULL
+-- 2. Transaccional Hugo Fernández: Actividades de Cultivo (Cabecera)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'actividad_cultivo' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
-    CREATE TABLE finanzas.liquidacion_cosechas (
-        id_liquidacion INT IDENTITY(1,1) PRIMARY KEY,
-        id_cosecha VARCHAR(24) NOT NULL, -- Clave compartida con MongoDB cosechas._id
-        id_parcela VARCHAR(24) NOT NULL,
-        cliente_comprador VARCHAR(100) NOT NULL,
-        num_factura_venta VARCHAR(30) NOT NULL,
-        kilos_facturados DECIMAL(10,2) NOT NULL,
-        precio_kilo DECIMAL(10,2) NOT NULL,
-        total_liquidado DECIMAL(10,2) NOT NULL,
-        fecha_facturacion DATETIME NOT NULL DEFAULT GETDATE()
+    CREATE TABLE dbo.actividad_cultivo (
+        id_actividad INT IDENTITY(1,1) CONSTRAINT PK_actividad PRIMARY KEY,
+        id_cultivo INT NOT NULL,
+        tipo_actividad VARCHAR(50) NOT NULL,
+        descripcion VARCHAR(MAX),
+        fecha_actividad DATETIME2 NOT NULL DEFAULT GETDATE(),
+        costo_total DECIMAL(10,2) NOT NULL DEFAULT 0.0,
+        estado BIT DEFAULT 1,
+        completado BIT DEFAULT 0,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2,
+        deleted_at DATETIME2,
+        restored_at DATETIME2,
+        CONSTRAINT FK_actividad_cultivos FOREIGN KEY (id_cultivo) REFERENCES dbo.cultivos(id_cultivo)
     );
 END;
 GO
 
--- 3. Restricciones e Integridad Referencial
-IF NOT EXISTS (SELECT * FROM sys.key_constraints WHERE name = 'AK_usuarios_email')
-    ALTER TABLE agropacayales.usuarios ADD CONSTRAINT AK_usuarios_email UNIQUE (email);
-
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CHK_usuarios_rol')
-    ALTER TABLE agropacayales.usuarios ADD CONSTRAINT CHK_usuarios_rol CHECK (rol IN ('Supervisor de Campo', 'Ingeniero Agrónomo', 'Operario', 'Administrador'));
-
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CHK_stock_no_negativo')
-    ALTER TABLE finanzas.stock_insumos ADD CONSTRAINT CHK_stock_no_negativo CHECK (stock_disponible >= 0);
-
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CHK_stock_costo_positivo')
-    ALTER TABLE finanzas.stock_insumos ADD CONSTRAINT CHK_stock_costo_positivo CHECK (costo_promedio >= 0);
-
-IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_compras_stock')
-    ALTER TABLE finanzas.compras_insumos ADD CONSTRAINT FK_compras_stock FOREIGN KEY (id_insumo) REFERENCES finanzas.stock_insumos(id_insumo);
-
-IF NOT EXISTS (SELECT * FROM sys.key_constraints WHERE name = 'AK_compras_factura')
-    ALTER TABLE finanzas.compras_insumos ADD CONSTRAINT AK_compras_factura UNIQUE (num_factura);
-
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CHK_compras_cantidad')
-    ALTER TABLE finanzas.compras_insumos ADD CONSTRAINT CHK_compras_cantidad CHECK (cantidad > 0);
-
-IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_labores_usuario')
-    ALTER TABLE agropacayales.asignacion_labores ADD CONSTRAINT FK_labores_usuario FOREIGN KEY (id_usuario) REFERENCES agropacayales.usuarios(id_usuario);
-
-IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_labores_stock')
-    ALTER TABLE agropacayales.asignacion_labores ADD CONSTRAINT FK_labores_stock FOREIGN KEY (id_insumo) REFERENCES finanzas.stock_insumos(id_insumo);
-
-IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CHK_labores_cantidad')
-    ALTER TABLE agropacayales.asignacion_labores ADD CONSTRAINT CHK_labores_cantidad CHECK (cantidad_usada > 0);
-
-IF NOT EXISTS (SELECT * FROM sys.key_constraints WHERE name = 'AK_liquidacion_cosecha')
-    ALTER TABLE finanzas.liquidacion_cosechas ADD CONSTRAINT AK_liquidacion_cosecha UNIQUE (id_cosecha);
-
-IF NOT EXISTS (SELECT * FROM sys.key_constraints WHERE name = 'AK_liquidacion_factura')
-    ALTER TABLE finanzas.liquidacion_cosechas ADD CONSTRAINT AK_liquidacion_factura UNIQUE (num_factura_venta);
+-- 3. Transaccional Hugo Fernández: Detalle de Actividades (Detalle - Insumos consumidos)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'detalle_actividad' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.detalle_actividad (
+        id_detalle INT IDENTITY(1,1) CONSTRAINT PK_detalle PRIMARY KEY,
+        id_actividad INT NOT NULL,
+        id_insumo VARCHAR(24) NOT NULL, -- Clave compartida con MongoDB insumos._id
+        cantidad INT NOT NULL,
+        precio_unitario DECIMAL(10,2) NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL,
+        CONSTRAINT FK_detalle_actividad_cabecera FOREIGN KEY (id_actividad) 
+            REFERENCES dbo.actividad_cultivo(id_actividad) ON DELETE CASCADE
+    );
+END;
 GO
 
--- 4. Índices para Optimización de Consultas
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_labores_parcela')
-    CREATE NONCLUSTERED INDEX IX_labores_parcela ON agropacayales.asignacion_labores(id_parcela);
-
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_labores_insumo')
-    CREATE NONCLUSTERED INDEX IX_labores_insumo ON agropacayales.asignacion_labores(id_insumo);
-
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_liquidacion_parcela')
-    CREATE NONCLUSTERED INDEX IX_liquidacion_parcela ON finanzas.liquidacion_cosechas(id_parcela);
-
-IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_compras_insumo')
-    CREATE NONCLUSTERED INDEX IX_compras_insumo ON finanzas.compras_insumos(id_insumo);
+-- 4. Transaccional Ana Félix: Cosechas - Harvest (Cabecera)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'harvest' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.harvest (
+        id_harvest INT IDENTITY(1,1) CONSTRAINT PK_harvest PRIMARY KEY,
+        responsable VARCHAR(100) NOT NULL,
+        fecha_cosecha DATE NOT NULL DEFAULT GETDATE(),
+        estado BIT DEFAULT 1,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2
+    );
+END;
 GO
 
--- 5. Vista de Decisión Gerencial (Costos vs Ganancias)
-CREATE OR ALTER VIEW finanzas.vw_comparativa_costos_ganancias AS
-WITH CostosPorParcela AS (
-    SELECT 
-        id_parcela,
-        COUNT(id_labor) AS total_labores_realizadas,
-        SUM(cantidad_usada * costo_aplicado) AS costo_total_insumos_usd
-    FROM agropacayales.asignacion_labores
-    GROUP BY id_parcela
-),
-IngresosPorParcela AS (
-    SELECT 
-        id_parcela,
-        COUNT(id_liquidacion) AS total_liquidaciones,
-        SUM(kilos_facturados) AS total_kilos_exportados,
-        SUM(total_liquidado) AS ingreso_total_ventas_usd
-    FROM finanzas.liquidacion_cosechas
-    GROUP BY id_parcela
-)
+-- 5. Transaccional Ana Félix: Detalle de Cosecha por Cultivo (Detalle)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'harvest_planting_cycle' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.harvest_planting_cycle (
+        id_harvest_detail INT IDENTITY(1,1) CONSTRAINT PK_harvest_detail PRIMARY KEY,
+        id_harvest INT NOT NULL,
+        id_cultivo INT NOT NULL,
+        kilos_optimos DECIMAL(10,2) NOT NULL,
+        kilos_merma DECIMAL(10,2) NOT NULL,
+        CONSTRAINT FK_harvest_detail_harvest FOREIGN KEY (id_harvest)
+            REFERENCES dbo.harvest(id_harvest) ON DELETE CASCADE,
+        CONSTRAINT FK_harvest_detail_cultivo FOREIGN KEY (id_cultivo)
+            REFERENCES dbo.cultivos(id_cultivo)
+    );
+END;
+GO
+
+-- 6. Transaccional Axel Huapaya: Asignación de Trabajadores (Cabecera)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'asignacion_cabecera' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.asignacion_cabecera (
+        id_asignacion_cabecera INT IDENTITY(1,1) CONSTRAINT PK_asignacion_cabecera PRIMARY KEY,
+        id_actividad INT NOT NULL,
+        fecha_asignacion DATETIME2 NOT NULL DEFAULT GETDATE(),
+        horas_trabajadas DECIMAL(5,2) NOT NULL,
+        costo_total_mano_obra DECIMAL(10,2) DEFAULT 0.0,
+        observacion VARCHAR(MAX),
+        estado BIT DEFAULT 1,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2,
+        CONSTRAINT FK_asig_cab_actividad FOREIGN KEY (id_actividad)
+            REFERENCES dbo.actividad_cultivo(id_actividad)
+    );
+END;
+GO
+
+-- 7. Transaccional Axel Huapaya: Detalle de Asignación de Trabajadores (Detalle)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'asignacion_detalle' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.asignacion_detalle (
+        id_asignacion_detalle INT IDENTITY(1,1) CONSTRAINT PK_asignacion_detalle PRIMARY KEY,
+        id_asignacion_cabecera INT NOT NULL,
+        id_usuario VARCHAR(24) NOT NULL, -- Clave compartida con MongoDB usuarios._id
+        costo_mano_obra DECIMAL(10,2) NOT NULL,
+        CONSTRAINT FK_asig_det_cabecera FOREIGN KEY (id_asignacion_cabecera)
+            REFERENCES dbo.asignacion_cabecera(id_asignacion_cabecera) ON DELETE CASCADE
+    );
+END;
+GO
+
+-- 8. Vista de Integración Transaccional (Resumen de Costos Operativos por Cultivo)
+CREATE OR ALTER VIEW dbo.vw_resumen_operativo_cultivos AS
 SELECT 
-    COALESCE(c.id_parcela, i.id_parcela) AS id_parcela,
-    ISNULL(c.total_labores_realizadas, 0) AS total_labores,
-    ISNULL(c.costo_total_insumos_usd, 0.00) AS costo_total_invertido_usd,
-    ISNULL(i.total_kilos_exportados, 0.00) AS kilos_exportados,
-    ISNULL(i.ingreso_total_ventas_usd, 0.00) AS ingreso_bruto_ventas_usd,
-    (ISNULL(i.ingreso_total_ventas_usd, 0.00) - ISNULL(c.costo_total_insumos_usd, 0.00)) AS ganancia_neta_usd,
-    CASE 
-        WHEN ISNULL(c.costo_total_insumos_usd, 0.00) > 0 THEN 
-            ROUND(((ISNULL(i.ingreso_total_ventas_usd, 0.00) - c.costo_total_insumos_usd) / c.costo_total_insumos_usd) * 100, 2)
-        ELSE 0.00
-    END AS retorno_inversion_roi_porc,
-    CASE 
-        WHEN (ISNULL(i.ingreso_total_ventas_usd, 0.00) - ISNULL(c.costo_total_insumos_usd, 0.00)) > 5000 THEN 'ALTA RENTABILIDAD (EXPANDIR)'
-        WHEN (ISNULL(i.ingreso_total_ventas_usd, 0.00) - ISNULL(c.costo_total_insumos_usd, 0.00)) > 0 THEN 'RENTABLE (MANTENER)'
-        ELSE 'EN PERDIDA (REVISAR COSTOS)'
-    END AS evaluacion_gerencial
-FROM CostosPorParcela c
-FULL OUTER JOIN IngresosPorParcela i ON c.id_parcela = i.id_parcela;
+    c.id_cultivo,
+    c.id_parcela,
+    c.nombre AS cultivo,
+    c.tipo_cultivo,
+    COUNT(DISTINCT a.id_actividad) AS total_actividades,
+    ISNULL(SUM(a.costo_total), 0.00) AS costo_total_insumos,
+    ISNULL(SUM(asig.costo_total_mano_obra), 0.00) AS costo_total_mano_obra,
+    (ISNULL(SUM(a.costo_total), 0.00) + ISNULL(SUM(asig.costo_total_mano_obra), 0.00)) AS costo_operativo_total
+FROM dbo.cultivos c
+LEFT JOIN dbo.actividad_cultivo a ON c.id_cultivo = a.id_cultivo
+LEFT JOIN dbo.asignacion_cabecera asig ON a.id_actividad = asig.id_actividad
+GROUP BY c.id_cultivo, c.id_parcela, c.nombre, c.tipo_cultivo;
 GO
 
--- 6. Procedimiento Almacenado de Análisis Gerencial
-CREATE OR ALTER PROCEDURE finanzas.sp_analizar_rentabilidad_parcela
-    @id_parcela VARCHAR(24)
-AS
+-- 9. Datos Semilla Iniciales (Línea Base V1)
+IF NOT EXISTS (SELECT 1 FROM dbo.cultivos)
 BEGIN
-    SET NOCOUNT ON;
-
-    PRINT '=============================================================';
-    PRINT '  INFORME DE TOMA DE DECISIONES FINANCIERAS - AGRO PACAYALES ';
-    PRINT '=============================================================';
-
-    -- Costos
-    SELECT 
-        l.id_labor,
-        l.tipo_labor,
-        s.nombre_insumo,
-        l.cantidad_usada,
-        s.unidad_medida,
-        l.costo_aplicado AS costo_unitario_usd,
-        (l.cantidad_usada * l.costo_aplicado) AS subtotal_costo_usd,
-        l.fecha_aplicacion
-    FROM agropacayales.asignacion_labores l
-    INNER JOIN finanzas.stock_insumos s ON l.id_insumo = s.id_insumo
-    WHERE l.id_parcela = @id_parcela;
-
-    -- Ingresos
-    SELECT 
-        liq.id_liquidacion,
-        liq.id_cosecha,
-        liq.cliente_comprador,
-        liq.num_factura_venta,
-        liq.kilos_facturados,
-        liq.precio_kilo,
-        liq.total_liquidado AS subtotal_ingreso_usd,
-        liq.fecha_facturacion
-    FROM finanzas.liquidacion_cosechas liq
-    WHERE liq.id_parcela = @id_parcela;
-
-    -- Consolidado
-    SELECT 
-        id_parcela,
-        costo_total_invertido_usd,
-        ingreso_bruto_ventas_usd,
-        ganancia_neta_usd,
-        retorno_inversion_roi_porc,
-        evaluacion_gerencial
-    FROM finanzas.vw_comparativa_costos_ganancias
-    WHERE id_parcela = @id_parcela;
+    INSERT INTO dbo.cultivos (id_parcela, nombre, tipo_cultivo, frecuencia_riego_dias, temperatura_ideal, fecha_siembra, requiere_sombra, observaciones, estado)
+    VALUES 
+    ('PARC-NORTE-A1', 'Palto Hass Exportación', 'Frutal Perenne', 4, 21.50, '2023-03-15', 0, 'Lote certificado GlobalGAP para exportación', 1),
+    ('PARC-SUR-B2', 'Arándano Biloxi', 'Arbusto Frutal', 2, 19.50, '2024-01-10', 1, 'Malla sombra y fertirriego tecnificado', 1);
 END;
 GO
 
--- 7. Semilla Inicial V1
-IF NOT EXISTS (SELECT 1 FROM agropacayales.usuarios)
+IF NOT EXISTS (SELECT 1 FROM dbo.actividad_cultivo)
 BEGIN
-    INSERT INTO agropacayales.usuarios (nombre_completo, email, rol) VALUES
-    ('Carlos Mendoza', 'carlos@agro.com', 'Supervisor de Campo'),
-    ('Hugo Fernandez', 'hugo@agro.com', 'Ingeniero Agrónomo'),
-    ('Ana Felix', 'ana@agro.com', 'Administrador'),
-    ('Axel Huapaya', 'axel@agro.com', 'Supervisor de Campo');
+    INSERT INTO dbo.actividad_cultivo (id_cultivo, tipo_actividad, descripcion, fecha_actividad, costo_total, estado, completado)
+    VALUES 
+    (1, 'Control Fitosanitario', 'Fumigación preventiva foliar contra queresas y hongos', '2026-03-10T08:00:00', 600.00, 1, 1),
+    (2, 'Fertirriego Nutricional', 'Inyección de macro y micronutrientes por goteo', '2026-03-12T07:30:00', 425.00, 1, 1);
 END;
+GO
 
-IF NOT EXISTS (SELECT 1 FROM finanzas.stock_insumos)
+IF NOT EXISTS (SELECT 1 FROM dbo.detalle_actividad)
 BEGIN
-    INSERT INTO finanzas.stock_insumos (id_insumo, nombre_insumo, unidad_medida, stock_disponible, costo_promedio) VALUES
-    ('INS-BIO-001', 'Insecticida BioProtect Pro', 'Litros', 45.00, 120.00),
-    ('INS-FERT-002', 'Fertilizante Foliar NPK 20-20-20', 'Sacos (50kg)', 66.00, 85.00);
+    INSERT INTO dbo.detalle_actividad (id_actividad, id_insumo, cantidad, precio_unitario, subtotal)
+    VALUES 
+    (1, 'INS-BIO-001', 5, 120.00, 600.00),
+    (2, 'INS-FERT-002', 5, 85.00, 425.00);
 END;
+GO
 
-IF NOT EXISTS (SELECT 1 FROM finanzas.compras_insumos)
+IF NOT EXISTS (SELECT 1 FROM dbo.harvest)
 BEGIN
-    INSERT INTO finanzas.compras_insumos (id_insumo, proveedor, num_factura, cantidad, precio_unitario, total_compra) VALUES
-    ('INS-BIO-001', 'Bayer CropScience', 'F002-004512', 50.00, 120.00, 6000.00),
-    ('INS-FERT-002', 'Yara Fertilizers Peru', 'F003-008910', 80.00, 85.00, 6800.00);
+    INSERT INTO dbo.harvest (responsable, fecha_cosecha, estado)
+    VALUES 
+    ('Ana Félix', '2026-03-14', 1);
 END;
+GO
 
-IF NOT EXISTS (SELECT 1 FROM agropacayales.asignacion_labores)
+IF NOT EXISTS (SELECT 1 FROM dbo.harvest_planting_cycle)
 BEGIN
-    INSERT INTO agropacayales.asignacion_labores (id_parcela, id_usuario, id_insumo, cantidad_usada, costo_aplicado, tipo_labor) VALUES
-    ('PARC-NORTE-A1', 1, 'INS-BIO-001', 5.00, 120.00, 'Control Fitosanitario'),
-    ('PARC-NORTE-A1', 2, 'INS-FERT-002', 10.00, 85.00, 'Fertilización Foliar'),
-    ('PARC-SUR-B2', 4, 'INS-FERT-002', 4.00, 85.00, 'Fertirriego Inicial');
+    INSERT INTO dbo.harvest_planting_cycle (id_harvest, id_cultivo, kilos_optimos, kilos_merma)
+    VALUES 
+    (1, 1, 4400.00, 120.00);
 END;
+GO
 
-IF NOT EXISTS (SELECT 1 FROM finanzas.liquidacion_cosechas)
+IF NOT EXISTS (SELECT 1 FROM dbo.asignacion_cabecera)
 BEGIN
-    INSERT INTO finanzas.liquidacion_cosechas (id_cosecha, id_parcela, cliente_comprador, num_factura_venta, kilos_facturados, precio_kilo, total_liquidado) VALUES
-    ('COS-2026-001', 'PARC-NORTE-A1', 'AgroExportadora Rotterdam', 'F001-000890', 4400.00, 3.20, 14080.00);
+    INSERT INTO dbo.asignacion_cabecera (id_actividad, fecha_asignacion, horas_trabajadas, costo_total_mano_obra, observacion, estado)
+    VALUES 
+    (1, '2026-03-10T07:00:00', 8.0, 160.00, 'Jornada diurna de aplicación en lote A1', 1);
+END;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.asignacion_detalle)
+BEGIN
+    INSERT INTO dbo.asignacion_detalle (id_asignacion_cabecera, id_usuario, costo_mano_obra)
+    VALUES 
+    (1, 'USR-OPER-001', 80.00),
+    (1, 'USR-OPER-002', 80.00);
 END;
 GO

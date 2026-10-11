@@ -41,6 +41,9 @@ services:
 
   sql-init:
     image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-sqlserver-init:${LAB_VERSION:-latest}"
+    build:
+      context: ./db/sqlserver
+      dockerfile: Dockerfile
     environment:
       SQL_HOST: sqlserver
       SQL_USER: sa
@@ -55,6 +58,9 @@ services:
 
   mongo-init:
     image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-mongodb-init:${LAB_VERSION:-latest}"
+    build:
+      context: ./db/mongodb
+      dockerfile: Dockerfile
     environment:
       MONGO_HOST: mongodb
       MONGO_ADMIN_USER: "${MONGO_ADMIN_USER:-admin}"
@@ -70,12 +76,17 @@ services:
 
   checker:
     image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-checker:${LAB_VERSION:-latest}"
+    build:
+      context: ./check
+      dockerfile: Dockerfile
+      args:
+        RELEASE_VERSION: ${RELEASE_VERSION:-development}
+        GIT_SHA: ${GIT_SHA:-local}
     environment:
       PORT: "8080"
       SQL_URL: "jdbc:sqlserver://sqlserver:1433;databaseName=agropacayales_db;encrypt=true;trustServerCertificate=true;loginTimeout=3"
       SQL_USER: sa
       SQL_PASSWORD: "${SQL_ADMIN_PASSWORD:-AgroPacayales2026!}"
-      SQL_SEED_EMAIL: carlos@agro.com
       SQL_SEED_PARCELA_ID: "${SQL_SEED_PARCELA_ID:-PARC-NORTE-A1}"
       MONGO_HOST: mongodb
       MONGO_DATABASE: agropacayales_db

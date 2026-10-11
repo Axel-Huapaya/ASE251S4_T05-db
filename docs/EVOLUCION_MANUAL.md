@@ -53,9 +53,9 @@ Crea un archivo nuevo en `db/sqlserver/changes/` (por ejemplo `V003_nueva_tabla.
 USE agropacayales_db;
 GO
 
-IF OBJECT_ID('agropacayales.nueva_tabla', 'U') IS NULL
+IF OBJECT_ID('dbo.nueva_tabla', 'U') IS NULL
 BEGIN
-    CREATE TABLE agropacayales.nueva_tabla (
+    CREATE TABLE dbo.nueva_tabla (
         id INT PRIMARY KEY IDENTITY(1,1),
         descripcion NVARCHAR(100) NOT NULL
     );
