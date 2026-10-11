@@ -13,9 +13,9 @@ db = db.getSiblingDB(process.env.MONGO_DATABASE || 'agropacayales_db');
 // =============================================================================
 // 1. INTEGRANTE: HUGO FERNÁNDEZ
 // Entidad: 'parcelas'
-// - Ejemplo 1 (1:1): Condiciones edáficas y fisicoquímicas del suelo
-// - Ejemplo 2 (1:Few): Sensores IoT instalados fijos en la parcela
-// - Ejemplo 3 (1:1): Sistema de riego tecnificado por goteo
+// - Ejemplo 1 (1:1): Condiciones del suelo (análisis físico-químico)
+// - Ejemplo 2 (1:Few): Sensores IoT físicos (sondas de humedad a 30cm y 60cm)
+// - Ejemplo 3 (1:1): Red de riego (parámetros hidráulicos fijos)
 // =============================================================================
 
 db.runCommand({
@@ -32,7 +32,7 @@ db.runCommand({
         geometriaGeoJSON: { bsonType: 'object' },
         cultivoActual: { bsonType: 'object' },
 
-        // Hugo Fernández - Ejemplo 1: Subdocumento edáfico 1:1
+        // Hugo Fernández - Ejemplo 1: Condiciones del suelo (1:1)
         condiciones_edaficas: {
           bsonType: 'object',
           required: ['textura', 'ph_promedio', 'materia_organica_pct'],
@@ -46,7 +46,7 @@ db.runCommand({
           }
         },
 
-        // Hugo Fernández - Ejemplo 2: Array de sensores IoT 1:Few
+        // Hugo Fernández - Ejemplo 2: Sensores IoT físicos (1:Few)
         dispositivos_iot_instalados: {
           bsonType: 'array',
           items: {
@@ -62,7 +62,7 @@ db.runCommand({
           }
         },
 
-        // Hugo Fernández - Ejemplo 3: Infraestructura de riego tecnificado 1:1
+        // Hugo Fernández - Ejemplo 3: Red de riego tecnificado (1:1)
         sistema_riego: {
           bsonType: 'object',
           required: ['tipo', 'caudal_lph', 'sector_valvula'],
@@ -73,6 +73,17 @@ db.runCommand({
             emisor_espaciamiento_m: { bsonType: ['double', 'int'] },
             sector_valvula: { bsonType: 'string' }
           }
+        },
+
+        // Estructura habilitada para el Subset Pattern de rendimiento (Axel Huapaya)
+        resumen_ultima_campana: {
+          bsonType: 'object',
+          properties: {
+            ano_campana: { bsonType: 'int' },
+            total_kilos_cosechados: { bsonType: ['double', 'int', 'decimal'] },
+            rendimiento_kg_ha: { bsonType: ['double', 'int', 'decimal'] },
+            calidad_cat1_pct: { bsonType: ['double', 'int', 'decimal'] }
+          }
         }
       }
     }
@@ -81,7 +92,7 @@ db.runCommand({
   validationAction: 'error'
 });
 
-// Carga de datos demostrativos — Hugo Fernández
+// Carga de datos de Hugo Fernández en 'parcelas'
 db.parcelas.updateOne(
   { _id: 'PARC-NORTE-A1' },
   {
@@ -138,9 +149,9 @@ db.parcelas.updateOne(
 // =============================================================================
 // 2. INTEGRANTE: ANA FÉLIX
 // Entidades: 'cosechas' e 'insumos'
-// - Ejemplo 1 (1:Few): Desglose inmutable de calidades comerciales en cosecha
-// - Ejemplo 2 (1:1): Certificado analítico de calidad de exportación
-// - Ejemplo 3 (1:Few): Tabla técnica de dosificación por cultivo en insumos
+// - Ejemplo 1 (1:Few): Calidades de exportación (proporciones de fruta inmutables)
+// - Ejemplo 2 (1:1): Laboratorio pre-embarque (requisitos aduaneros congelados)
+// - Ejemplo 3 (1:Few): Dosificación técnica (instrucciones atadas al insumo)
 // =============================================================================
 
 db.runCommand({
@@ -156,7 +167,7 @@ db.runCommand({
         fechaCosecha: { bsonType: 'date' },
         totalKilosCampo: { bsonType: ['double', 'int', 'decimal'], minimum: 0.1 },
 
-        // Ana Félix - Ejemplo 1: Array de calidades comerciales 1:Few
+        // Ana Félix - Ejemplo 1: Calidades de exportación (1:Few)
         desgloseCalidades: {
           bsonType: 'array',
           minItems: 1,
@@ -174,7 +185,7 @@ db.runCommand({
           }
         },
 
-        // Ana Félix - Ejemplo 2: Certificado analítico de laboratorio 1:1
+        // Ana Félix - Ejemplo 2: Laboratorio pre-embarque (1:1)
         control_calidad_laboratorio: {
           bsonType: 'object',
           required: ['grados_brix', 'materia_seca_pct', 'estado_fitosanitario'],
@@ -245,7 +256,7 @@ db.runCommand({
         unidadMedida: { bsonType: 'string' },
         especificaciones: { bsonType: 'object' },
 
-        // Ana Félix - Ejemplo 3: Array técnico de dosificaciones 1:Few
+        // Ana Félix - Ejemplo 3: Dosificación técnica (1:Few)
         tabla_dosificacion_cultivo: {
           bsonType: 'array',
           minItems: 1,
@@ -293,10 +304,10 @@ db.insumos.updateOne(
 
 // =============================================================================
 // 3. INTEGRANTE: AXEL HUAPAYA
-// Entidad: 'fichas_campo'
-// - Ejemplo 1 (1:1): Protocolo inmutable de certificación GlobalG.A.P.
-// - Ejemplo 2 (1:Few): Monitoreo y conteo de plagas evaluadas por trampa
-// - Ejemplo 3 (1:1): Condiciones microclimáticas ambientales al momento de la evaluación
+// Entidades: 'fichas_campo' y 'parcelas' (Subset Pattern)
+// - Ejemplo 1 (1:1): Auditoría GlobalG.A.P. (certificado legal inalterable)
+// - Ejemplo 2 (1:Few): Monitoreo de plagas (consolidado en visita de campo)
+// - Ejemplo 3 (1:1): Subset de rendimiento (resumen incrustado de campaña)
 // =============================================================================
 
 db.runCommand({
@@ -310,8 +321,7 @@ db.runCommand({
         'parcela',
         'tipoFicha',
         'protocolo_certificacion',
-        'monitoreo_plagas_evaluadas',
-        'condiciones_ambientales_monitoreo'
+        'monitoreo_plagas_evaluadas'
       ],
       properties: {
         fechaEvaluacion: { bsonType: 'date' },
@@ -319,10 +329,10 @@ db.runCommand({
         parcela: { bsonType: 'string' },
         tipoFicha: { enum: ['PLAGAS', 'RIEGO_Y_SUELO', 'FERTILIZACION', 'EVALUACION_FITOSANITARIA'] },
 
-        // Axel Huapaya - Ejemplo 1: Protocolo de certificación GlobalG.A.P. 1:1
+        // Axel Huapaya - Ejemplo 1: Auditoría GlobalG.A.P. (1:1)
         protocolo_certificacion: {
           bsonType: 'object',
-          required: ['norma', 'codigo_auditor', 'carencia_cumplida', 'cumple_lmr'],
+          required: ['norma', 'codigo_auditor', 'carencia_cumplida'],
           properties: {
             norma: { enum: ['GlobalG.A.P. IFA v6', 'SENASA-BPA', 'GRASP Social', 'Rainforest Alliance'] },
             codigo_auditor: { bsonType: 'string' },
@@ -338,32 +348,19 @@ db.runCommand({
           }
         },
 
-        // Axel Huapaya - Ejemplo 2: Array de plagas evaluadas en campo 1:Few
+        // Axel Huapaya - Ejemplo 2: Monitoreo de plagas (1:Few)
         monitoreo_plagas_evaluadas: {
           bsonType: 'array',
           minItems: 1,
           items: {
             bsonType: 'object',
-            required: ['plaga', 'organo_afectado', 'nivel_infestacion'],
+            required: ['plaga', 'nivel_infestacion'],
             properties: {
               plaga: { bsonType: 'string' },
               organo_afectado: { bsonType: 'string' },
               nivel_infestacion: { enum: ['Nulo', 'Bajo', 'Medio', 'Severo'] },
               individuos_por_trampa: { bsonType: ['double', 'int', 'decimal'] }
             }
-          }
-        },
-
-        // Axel Huapaya - Ejemplo 3: Condiciones climáticas de la evaluación 1:1
-        condiciones_ambientales_monitoreo: {
-          bsonType: 'object',
-          required: ['temperatura_c', 'humedad_relativa_pct', 'velocidad_viento_kmh'],
-          properties: {
-            temperatura_c: { bsonType: ['double', 'int', 'decimal'] },
-            humedad_relativa_pct: { bsonType: ['double', 'int', 'decimal'] },
-            velocidad_viento_kmh: { bsonType: ['double', 'int', 'decimal'] },
-            radiacion_uv_indice: { bsonType: ['double', 'int'] },
-            precipitacion_reciente_mm: { bsonType: ['double', 'int', 'decimal'] }
           }
         }
       }
@@ -373,7 +370,7 @@ db.runCommand({
   validationAction: 'error'
 });
 
-// Carga de datos demostrativos — Axel Huapaya
+// Carga de datos de Axel Huapaya: Fichas de Campo (Ejemplos 1 y 2)
 db.fichas_campo.updateOne(
   { parcela: 'PARC-NORTE-A1' },
   {
@@ -395,16 +392,24 @@ db.fichas_campo.updateOne(
       monitoreo_plagas_evaluadas: [
         { plaga: 'Mosca de la fruta (Ceratitis capitata)', organo_afectado: 'Fruto', nivel_infestacion: 'Bajo', individuos_por_trampa: 0.4 },
         { plaga: 'Queresa coma (Fiorinia fioriniae)', organo_afectado: 'Ramas', nivel_infestacion: 'Nulo', individuos_por_trampa: 0.0 }
-      ],
-      condiciones_ambientales_monitoreo: {
-        temperatura_c: 24.5,
-        humedad_relativa_pct: 68.0,
-        velocidad_viento_kmh: 8.5,
-        radiacion_uv_indice: 7,
-        precipitacion_reciente_mm: 0.0
+      ]
+    }
+  }
+);
+
+// Axel Huapaya - Ejemplo 3: Subset de Rendimiento en 'parcelas' (1:1)
+db.parcelas.updateOne(
+  { _id: 'PARC-NORTE-A1' },
+  {
+    $set: {
+      resumen_ultima_campana: {
+        ano_campana: 2025,
+        total_kilos_cosechados: 52000.0,
+        rendimiento_kg_ha: 4160.0,
+        calidad_cat1_pct: 84.6
       }
     }
   }
 );
 
-print('MongoDB: V002 aplicado con éxito (9 ejemplos de Embedding agrupados estrictamente por integrante).');
+print('MongoDB: V002 aplicado con éxito (9 ejemplos de Embedding alineados 100% a las diapositivas).');

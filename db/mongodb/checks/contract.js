@@ -70,8 +70,8 @@ if (requested >= 2) {
   if (!ficha.monitoreo_plagas_evaluadas || ficha.monitoreo_plagas_evaluadas.length === 0) {
     throw Error('V2 requiere array monitoreo_plagas_evaluadas en fichas_campo (Axel Huapaya - Ej 2)');
   }
-  if (!ficha.condiciones_ambientales_monitoreo || !ficha.condiciones_ambientales_monitoreo.temperatura_c) {
-    throw Error('V2 requiere subdocumento condiciones_ambientales_monitoreo en fichas_campo (Axel Huapaya - Ej 3)');
+  if (!parcelaA1.resumen_ultima_campana || !parcelaA1.resumen_ultima_campana.rendimiento_kg_ha) {
+    throw Error('V2 requiere subset resumen_ultima_campana en parcelas (Axel Huapaya - Ej 3)');
   }
 }
 

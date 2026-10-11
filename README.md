@@ -11,7 +11,7 @@
 | :--- | :--- | :--- | :--- |
 | **Hugo Fernández** | **DevOps / Líder Técnico** | Orquestación Docker, Compose, Versionador `run.sh`, Checker API | **1.** `condiciones_edaficas` (1:1) en `parcelas`<br>**2.** `dispositivos_iot_instalados` (1:Few) en `parcelas`<br>**3.** `sistema_riego` (1:1) en `parcelas` |
 | **Ana Félix** | **Database Developer (SQL Server)** | Módulo SQL Server 2022, kardex de insumos, auditoría de labores | **1.** `desgloseCalidades` (1:Few) en `cosechas`<br>**2.** `control_calidad_laboratorio` (1:1) en `cosechas`<br>**3.** `tabla_dosificacion_cultivo` (1:Few) en `insumos` |
-| **Axel Huapaya** | **Database Developer (MongoDB)** | Módulo MongoDB 8.0, validadores `$jsonSchema`, índices y migraciones | **1.** `protocolo_certificacion` (1:1) en `fichas_campo`<br>**2.** `monitoreo_plagas_evaluadas` (1:Few) en `fichas_campo`<br>**3.** `condiciones_ambientales_monitoreo` (1:1) en `fichas_campo` |
+| **Axel Huapaya** | **Database Developer (MongoDB)** | Módulo MongoDB 8.0, validadores `$jsonSchema`, índices y migraciones | **1.** `protocolo_certificacion` (1:1) en `fichas_campo`<br>**2.** `monitoreo_plagas_evaluadas` (1:Few) en `fichas_campo`<br>**3.** `resumen_ultima_campana` (1:1 Subset) en `parcelas` |
 
 ---
 
@@ -125,10 +125,10 @@ Para la presente actividad académica, se implementaron **9 ejemplos de la estra
 * **Ejemplo 2 (Embedding 1:1):** Subdocumento `control_calidad_laboratorio` en `cosechas` (°Brix, materia seca %, firmeza de pulpa, veredicto fitosanitario pre-embarque).
 * **Ejemplo 3 (Embedding 1:Few):** Array `tabla_dosificacion_cultivo` en `insumos` (dosis por cultivo y etapa fenológica incrustadas en el catálogo de insumos).
 
-### 3. Axel Huapaya (Entidad: `fichas_campo`)
-* **Ejemplo 1 (Embedding 1:1):** Subdocumento `protocolo_certificacion` (auditoría GlobalG.A.P. IFA v6, código de auditor, días de carencia cumplidos, LMR en ppm, checklist de puntos críticos).
-* **Ejemplo 2 (Embedding 1:Few):** Array `monitoreo_plagas_evaluadas` (conteo por trampa de mosca de la fruta y queresas, órgano afectado y nivel de infestación).
-* **Ejemplo 3 (Embedding 1:1):** Subdocumento `condiciones_ambientales_monitoreo` (temperatura ambiente, humedad relativa %, velocidad de viento y radiación UV al momento de la inspección técnica).
+### 3. Axel Huapaya (Entidades: `fichas_campo` y `parcelas`)
+* **Ejemplo 1 (Embedding 1:1):** Subdocumento `protocolo_certificacion` en `fichas_campo` (auditoría GlobalG.A.P. IFA v6, código de auditor, días de carencia cumplidos, LMR en ppm, checklist de puntos críticos).
+* **Ejemplo 2 (Embedding 1:Few):** Array `monitoreo_plagas_evaluadas` en `fichas_campo` (conteo por trampa de mosca de la fruta y queresas, órgano afectado y nivel de infestación).
+* **Ejemplo 3 (Embedding Subset 1:1):** Subdocumento `resumen_ultima_campana` en `parcelas` (campaña 2025, total kilos, rendimiento kg/ha y % Cat 1). Mini-resumen de la campaña anterior incrustado para tableros de control inmediatos.
 
 ---
 
