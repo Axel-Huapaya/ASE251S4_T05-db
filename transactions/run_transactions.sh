@@ -26,6 +26,8 @@ run_mongosh() {
     else
       mongosh --quiet "$script_file"
     fi
+  elif docker ps 2>/dev/null | grep -q "agro-mongo-test"; then
+    docker exec -i agro-mongo-test mongosh --quiet < "$script_file"
   elif docker compose version >/dev/null 2>&1; then
     warn "mongosh local no detectado; ejecutando en contenedor Docker de MongoDB..."
     docker compose exec -T mongodb mongosh --quiet < "$script_file"
