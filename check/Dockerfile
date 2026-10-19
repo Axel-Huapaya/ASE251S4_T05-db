@@ -1,18 +1,12 @@
-FROM maven:3.9.16-eclipse-temurin-21-noble AS build
-WORKDIR /src
-COPY pom.xml .
-COPY src ./src
-RUN mvn -B -DskipTests package
+FROM maven:3.9.9-eclipse-temurin-21 AS build
+WORKDIR /build
+COPY check/pom.xml .
+RUN mvn -B dependency:go-offline
+COPY check/src src
+RUN mvn -B package -DskipTests
 
-FROM eclipse-temurin:21-jre-noble
-ARG RELEASE_VERSION=development
-ARG GIT_SHA=unknown
-ENV RELEASE_VERSION=$RELEASE_VERSION GIT_SHA=$GIT_SHA
-LABEL org.opencontainers.image.title="ASE251S4 Team 05 SQL Server MongoDB Checker" \
-      org.opencontainers.image.version="$RELEASE_VERSION" \
-      org.opencontainers.image.revision="$GIT_SHA"
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build --chown=10001:10001 /src/target/check.jar /app/check.jar
-USER 10001:10001
+COPY --from=build /build/target/ase251s4-t05-db-checker-0.1.0.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/check.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

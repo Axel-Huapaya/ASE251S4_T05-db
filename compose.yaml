@@ -1,112 +1,44 @@
+name: agropacayales-db
+
+x-liquibase: &liquibase
+  image: ${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-liquibase:${LAB_VERSION:-local}
+  build:
+    context: .
+    dockerfile: docker/liquibase/Dockerfile
+  volumes:
+    - ./db:/workspace/db:ro
+
 services:
-  sqlserver:
-    image: "${SQLSERVER_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}"
+  postgresql:
+    <<: *liquibase
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: "${MSSQL_PID:-Developer}"
-      MSSQL_SA_PASSWORD: "${SQL_ADMIN_PASSWORD:-AgroPacayales2026!}"
-    ports:
-      - "${SQL_HOST_PORT:-1433}:1433"
-    volumes:
-      - sql-data:/var/opt/mssql
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' > /dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 25
-      start_period: 60s
+      LIQUIBASE_COMMAND_URL: ${POSTGRES_URL:?Define POSTGRES_URL en .env}
+      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USERNAME:?Define POSTGRES_USERNAME en .env}
+      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db/postgresql/changelog.xml
 
   mongodb:
-    image: "${MONGO_IMAGE:-mongo:8.0.32-noble}"
+    <<: *liquibase
     environment:
-      MONGO_INITDB_ROOT_USERNAME: "${MONGO_ADMIN_USER:-admin}"
-      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_ADMIN_PASSWORD:-AgroAdmin2026!}"
-    ports:
-      - "${MONGO_HOST_PORT:-27017}:27017"
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test:
-        - CMD
-        - mongosh
-        - --host
-        - mongodb
-        - --quiet
-        - --eval
-        - 'const a=db.getSiblingDB("admin"); a.auth(process.env.MONGO_INITDB_ROOT_USERNAME,process.env.MONGO_INITDB_ROOT_PASSWORD); if(a.runCommand({ping:1}).ok!==1) quit(1);'
-      interval: 10s
-      timeout: 8s
-      retries: 20
-      start_period: 20s
-
-  sql-init:
-    image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-sqlserver-init:${LAB_VERSION:-latest}"
-    build:
-      context: ./db/sqlserver
-      dockerfile: Dockerfile
-    environment:
-      SQL_HOST: sqlserver
-      SQL_USER: sa
-      SQL_PASSWORD: "${SQL_ADMIN_PASSWORD:-AgroPacayales2026!}"
-      TARGET_SCHEMA_VERSION: "${TARGET_SCHEMA_VERSION:-latest}"
-      GIT_SHA: "${GIT_SHA:-local}"
-      RELEASE_VERSION: "${RELEASE_VERSION:-local}"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    restart: "no"
-
-  mongo-init:
-    image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-mongodb-init:${LAB_VERSION:-latest}"
-    build:
-      context: ./db/mongodb
-      dockerfile: Dockerfile
-    environment:
-      MONGO_HOST: mongodb
-      MONGO_ADMIN_USER: "${MONGO_ADMIN_USER:-admin}"
-      MONGO_ADMIN_PASSWORD: "${MONGO_ADMIN_PASSWORD:-AgroAdmin2026!}"
-      MONGO_DATABASE: agropacayales_db
-      TARGET_SCHEMA_VERSION: "${TARGET_SCHEMA_VERSION:-latest}"
-      GIT_SHA: "${GIT_SHA:-local}"
-      RELEASE_VERSION: "${RELEASE_VERSION:-local}"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    restart: "no"
+      LIQUIBASE_COMMAND_URL: ${MONGODB_URL:?Define MONGODB_URL en .env}
+      LIQUIBASE_COMMAND_USERNAME: ${MONGODB_USERNAME:?Define MONGODB_USERNAME en .env}
+      LIQUIBASE_COMMAND_PASSWORD: ${MONGODB_PASSWORD:?Define MONGODB_PASSWORD en .env}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db/mongodb/changelog.xml
 
   checker:
-    image: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-checker:${LAB_VERSION:-latest}"
+    profiles: [checker]
+    image: ${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-checker:${CHECKER_VERSION:-local}
     build:
-      context: ./check
-      dockerfile: Dockerfile
-      args:
-        RELEASE_VERSION: ${RELEASE_VERSION:-development}
-        GIT_SHA: ${GIT_SHA:-local}
+      context: .
+      dockerfile: check/Dockerfile
     environment:
-      PORT: "8080"
-      SQL_URL: "jdbc:sqlserver://sqlserver:1433;databaseName=agropacayales_db;encrypt=true;trustServerCertificate=true;loginTimeout=3"
-      SQL_USER: sa
-      SQL_PASSWORD: "${SQL_ADMIN_PASSWORD:-AgroPacayales2026!}"
-      SQL_SEED_PARCELA_ID: "${SQL_SEED_PARCELA_ID:-PARC-NORTE-A1}"
-      MONGO_HOST: mongodb
-      MONGO_DATABASE: agropacayales_db
-      MONGO_USER: "${MONGO_ADMIN_USER:-admin}"
-      MONGO_PASSWORD: "${MONGO_ADMIN_PASSWORD:-AgroAdmin2026!}"
-      MONGO_AUTH_SOURCE: admin
-      MONGO_SEED_PARCELA_ID: "${MONGO_SEED_PARCELA_ID:-PARC-NORTE-A1}"
-      TARGET_SCHEMA_VERSION: "${TARGET_SCHEMA_VERSION:-latest}"
-      IMAGE_REFERENCE: "${IMAGE_NAMESPACE:-hugo454}/ase251s4-t05-db-checker:${LAB_VERSION:-latest}"
-      RELEASE_VERSION: "${RELEASE_VERSION:-local}"
-      GIT_SHA: "${GIT_SHA:-local}"
+      CHECK_POSTGRES_URL: ${CHECK_POSTGRES_URL:?Define CHECK_POSTGRES_URL en .env}
+      POSTGRES_USERNAME: ${POSTGRES_USERNAME:?Define POSTGRES_USERNAME en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      MONGODB_URL: ${MONGODB_URL:?Define MONGODB_URL en .env}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:?Define MONGODB_USERNAME en .env}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:?Define MONGODB_PASSWORD en .env}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-agropacayales_db}
+      MONGODB_AUTH_DATABASE: ${MONGODB_AUTH_DATABASE:-admin}
     ports:
-      - "${CHECK_HOST_PORT:-8080}:8080"
-    depends_on:
-      sql-init:
-        condition: service_completed_successfully
-      mongo-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
-volumes:
-  sql-data:
-  mongo-data:
+      - "${CHECKER_PORT:-8080}:8080"
