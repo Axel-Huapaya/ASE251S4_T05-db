@@ -319,7 +319,7 @@ public final class Main {
                   "version", version, "contract", contract));
         }
         case "/openapi.json" -> respond(exchange, 200, "application/json", OPENAPI);
-        case "/swagger-ui", "/swagger-ui/" -> respond(exchange, 200,
+        case "/swagger-ui", "/swagger-ui/", "/swagger-ui.html" -> respond(exchange, 200,
             "text/html; charset=utf-8", SWAGGER);
         default -> respond(exchange, 404, "application/json",
             map("error", "route not found", "documentation", "/swagger-ui"));
